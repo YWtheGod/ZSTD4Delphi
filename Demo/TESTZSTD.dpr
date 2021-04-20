@@ -198,5 +198,6 @@ begin
     on E: Exception do
       Writeln(E.ClassName, ': ', E.Message);
   end;
+  writeln('Done! press ENTER to quit');
   readln;
 end.
