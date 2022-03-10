@@ -8,8 +8,8 @@ So, VC tool set only works on 64bit mode, and Clang only works on 32bit mode, I 
 
 Some thing you should know:
 This library depends on other two librarys:
-https://github.com/YWtheGod/LIBC
-https://github.com/YWtheGod/XXHASH4Delphi
+[libc](https://github.com/YWtheGod/LIBC)
+[XXHASH4DELPHI](https://github.com/YWtheGod/XXHASH4Delphi)
 ZSTD comes with a xxhash source code with its own, but I thought sharing a library would be better.
 And I didn't compiled legecy supporting code into the object files, so it can't decompress data that was compressed by very old zstd library(before 1.0 I thought), if it will be a problem, let me known.
 Now I compiled both AVX2 and SSE2 version of the codes, but if to run it on CPU that don't have AVX2 support, you also need to compile my XXHASH4Delphi library in SSE2 mode too.
