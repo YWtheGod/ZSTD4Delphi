@@ -1,24 +1,14 @@
 # ZSTD static link library for DELPHI
-
 I got a lot problem try linking zstd with delphi since 1.5.1, everything is smooth when it was 1.5.0
-
 I got AV error when using mingw GCC 11.2, and failed to compile when using mingw clang 13.0.1
-
-And finally I got it success compiled with VS 17.1.1, but delphi raise a internal AV error when linking with 32bit object files.
-
+And finally I got it success compiled with VS 17.1.1, but delphi raise a internal AV error whn linking with 32bit object files.
 So, I compiled 32bit object file with VS Clang 13.0 tool set, seems it work, but it won't work on 64bit mode(AV in run time).
-
 So, VC tool set only works on 64bit mode, and Clang only works on 32bit mode, I just combined two together...
 
-
 Some thing you should know:
-
 This library depends on other two librarys:
-
 https://github.com/YWtheGod/LIBC
-
 https://github.com/YWtheGod/XXHASH4Delphi
-
 ZSTD comes with a xxhash source code with its own, but I thought sharing a library would be better.
 And I didn't compiled legecy supporting code into the object files, so it can't decompress data that was compressed by very old zstd library(before 1.0 I thought), if it will be a problem, let me known.
 Now I compiled both AVX2 and SSE2 version of the codes, but if to run it on CPU that don't have AVX2 support, you also need to compile my XXHASH4Delphi library in SSE2 mode too.
