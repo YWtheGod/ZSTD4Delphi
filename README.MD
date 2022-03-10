@@ -1,7 +1,8 @@
 # ZSTD static link library for DELPHI
+
 I got a lot problem try linking zstd with delphi since 1.5.1, everything is smooth when it was 1.5.0
 I got AV error when using mingw GCC 11.2, and failed to compile when using mingw clang 13.0.1
-And finally I got it success compiled with VS 17.1.1, but delphi raise a internal AV error whn linking with 32bit object files.
+And finally I got it success compiled with VS 17.1.1, but delphi raise a internal AV error when linking with 32bit object files.
 So, I compiled 32bit object file with VS Clang 13.0 tool set, seems it work, but it won't work on 64bit mode(AV in run time).
 So, VC tool set only works on 64bit mode, and Clang only works on 32bit mode, I just combined two together...
 
@@ -28,4 +29,3 @@ ZSTD自带一个xxhash源码，并且它修改了xxhash源码的命名前缀以�
 这次我附带了AVX2和SSE2版本的目标文件，通过编译开关可以切换，但是单独切换ZSTD还不够，你还得在编译XXHASH4DELPHI时也选择同样的SSE2版本，才能在没有AVX2的CPU上运行。
 ZSTD在Windows平台下没有采用汇编代码的哈夫曼解压，我觉得解压也不需要极限速度，所以我就由得它没动它的汇编代码。
 最后，1.5.2速度基本和1.5.0版本差不多，高压缩设定下轻微慢一点点，但是在所有压缩率设定下，压缩体积都要更小一点点
-
