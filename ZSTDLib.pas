@@ -1,13 +1,15 @@
+//Remove Next Line to Use SSE2 Library
+{$DEFINE AVX2}
 unit ZSTDLib;
 
 interface
 const
   ZSTD_VERSION_MAJOR = 1;
   ZSTD_VERSION_MINOR = 5;
-  ZSTD_VERSION_RELEASE = 0;
+  ZSTD_VERSION_RELEASE = 2;
   ZSTD_VERSION_NUMBER = ZSTD_VERSION_MAJOR*100*100+ZSTD_VERSION_MINOR*100+
     ZSTD_VERSION_RELEASE;
-  ZSTD_VERSION_STRING = '1.5.0';
+  ZSTD_VERSION_STRING = '1.5.2';
   ZSTD_CLEVEL_DEFAULT = 3;
   ZSTD_REP_NUM = 3;
 type
@@ -875,30 +877,12 @@ function ZSTD_buildBlockEntropyStats(seqStorePtr:Pointer;const prevEntropy:
   workspace:Pointer;wkspSize:NativeInt):NativeInt; external 'libzstd.a';
 {$ENDIF}
 implementation
-uses libc;
-
+uses xxhashlib,
+{$IFDEF MSWINDOWS}
+libc
+{$ENDIF}
+;
 {$IFDEF WIN32}
-{$L error_private.x86.o}
-{$L zstd_common.x86.o}
-{$L zstd_compress.x86.o}
-{$L zstd_ldm.x86.o}
-{$L zstd_double_fast.x86.o}
-{$L zstd_fast.x86.o}
-{$L zstd_opt.x86.o}
-{$L zstd_lazy.x86.o}
-{$L xxhash.x86.o}
-{$L zstd_compress_literals.x86.o}
-{$L hist.x86.o}
-{$L zstd_compress_sequences.x86.o}
-{$L zstd_compress_superblock.x86.o}
-{$L huf_compress.x86.o}
-{$L entropy_common.x86.o}
-{$L fse_compress.x86.o}
-{$L fse_decompress.x86.o}
-{$L zstd_decompress.x86.o}
-{$L zstd_ddict.x86.o}
-{$L zstd_decompress_block.x86.o}
-{$L huf_decompress.x86.o}
 function ERR_getErrorString(code : ZSTD_ErrorCode):PAnsiChar; inline;
 begin Result := _ERR_getErrorString(code); end;
 procedure ZSTD_customFree(ptr : Pointer; customMem : ZSTD_customMem); inline;
@@ -1124,32 +1108,20 @@ function ZSTD_buildBlockEntropyStats(seqStorePtr:Pointer;const prevEntropy:
   workspace:Pointer;wkspSize:NativeInt):NativeInt; inline;
 begin Result:=ZSTD_buildBlockEntropyStats(cctxParams,prevEntropy,nextEntropy,
   cctxParams,entropyMetadata,workspace,wkspSize); end;
+{$IFDEF AVX2}
+{$L zstd4delphi.avx2.x86.o}
+{$ELSE}
+{$L zstd4delphi.sse2.x86.o}
+{$ENDIF}
 {$ENDIF}
 {$IFDEF WIN64}
-{$L error_private.x64.o}
-{$L zstd_common.x64.o}
-{$L zstd_compress.x64.o}
-{$L zstd_ldm.x64.o}
-{$L zstd_double_fast.x64.o}
-{$L zstd_fast.x64.o}
-{$L zstd_opt.x64.o}
-{$L zstd_lazy.x64.o}
-{$L xxhash.x64.o}
-{$L zstd_compress_literals.x64.o}
-{$L hist.x64.o}
-{$L zstd_compress_sequences.x64.o}
-{$L zstd_compress_superblock.x64.o}
-{$L huf_compress.x64.o}
-{$L entropy_common.x64.o}
-{$L fse_compress.x64.o}
-{$L fse_decompress.x64.o}
-{$L zstd_decompress.x64.o}
-{$L zstd_ddict.x64.o}
-{$L zstd_decompress_block.x64.o}
-{$L huf_decompress.x64.o}
+{$IFDEF AVX2}
+{$L zstd4delphi.avx2.x64.o}
+{$ELSE}
+{$L zstd4delphi.sse2.x64.o}
+{$ENDIF}
 {$ENDIF}
 end.
-
 
 
 
