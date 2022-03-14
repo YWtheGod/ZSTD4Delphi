@@ -190,7 +190,7 @@ begin
   begin
     result := total_in;
   end
-  else raise Exception.Create('Compress Stream is WriteOnly');
+  else Result := -1;
 end;
 
 function TZSTDCompressStream.Write(const Buffer: TBytes; Offset,
@@ -256,13 +256,14 @@ begin
 end;
 
 function TZSTDDecompressStream.Read(var buffer; count: Longint): Longint;
-var a : NativeInt;
+var a,b : NativeInt;
 begin
   FoutBuffer.dst := @Buffer;
   FoutBuffer.size := Count;
   FoutBuffer.pos := 0;
   repeat
-    ZSTD_decompressStream(FDStream,FoutBuffer,FinBuffer);
+    b := ZSTD_decompressStream(FDStream,FoutBuffer,FinBuffer);
+    if ZSTD_iserror(b)<>0 then raise Exception.Create('ZSTD Error '+b.toString);
     if (FInBuffer.pos=FInBuffer.size) then begin
       if _eof then break;
       a := FStream.Read(FInBuffer.src^,FInBuffer.size);
@@ -279,14 +280,7 @@ end;
 function TZSTDDecompressStream.Seek(const Offset: Int64;
   Origin: TSeekOrigin): Int64;
 begin
-  if (offset = 0) then
-    if (origin = soCurrent) then result := total_in
-    else if (origin = soBeginning) then begin
-      ZSTD_initDStream(FDStream);
-      FStream.Position := 0;
-      Result := 0;
-    end
-  else raise Exception.Create('Compress Stream is ReadOnly');
+  Result := -1;
 end;
 
 function TZSTDDecompressStream.Write(const Buffer: TBytes; Offset,
