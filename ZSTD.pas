@@ -65,18 +65,34 @@ function CompressData(source :TBytes;index:NativeInt=0;size:NativeInt=-1;
   compressionLevel:integer=3):TBytes; overload;
 function DecompressData(Source:TBytes;Size:NativeInt=-1):TBytes; overload;
 implementation
+{$IFDEF YWRTL}uses YWTypes;{$ENDIF}
 type
   Context = record
-    class function GetCCTX:ZSTD_CCTX; static;
+    class var [volatile]_CCTX : ZSTD_CCtx;
+    class var [volatile]_DCTX : ZSTD_DCtx;
+    class var [volatile]_CStream : ZSTD_CStream;
+    class var [volatile]_DStream : ZSTD_DStream;
+    class function GetCCTX:ZSTD_CCTX; inline; static;
     class function GetDCTX:ZSTD_DCTX; inline; static;
-    class procedure FreeCCTX(C : ZSTD_CCTX); static;
+    class procedure FreeCCTX(C : ZSTD_CCTX); inline; static;
     class procedure FreeDCTX(C : ZSTD_DCTX); inline; static;
+    class function GetCStream(cl:integer):ZSTD_CStream; inline; static;
+    class function GetDStream:ZSTD_DStream; inline; static;
+    class procedure FreeCStream(C : ZSTD_CStream); inline; static;
+    class procedure FreeDStream(C : ZSTD_DStream); inline; static;
     class constructor Create;
     class destructor Destroy;
   end;
-var
-  [volatile]_CCTX : ZSTD_CCtx;
-  [volatile]_DCTX : ZSTD_DCtx;
+
+function GetBuffer : Pointer; inline;
+begin
+  {$IFDEF YWRTL}Result:=BufferPool256K.GetBuffer{$ELSE}GetMem(Result,256*1024){$ENDIF}
+end;
+
+procedure FreeBuffer(var b : Pointer); inline;
+begin
+  {$IFDEF YWRTL}BufferPool256K.FreeBuffer(b){$ELSE}FreeMem(b){$ENDIF}
+end;
 
 function CompressData(source : Pointer;srcSize:NativeInt; dst:Pointer;
   dstCapacity:NativeInt; compressionLevel:integer=3):NativeInt; overload;
@@ -120,11 +136,10 @@ end;
 constructor TZSTDCompressStream.Create(dest: TStream; compressionLevel: Integer=3);
 begin
   inherited Create(dest);
-  FCStream := ZSTD_createCStream;
   flevel :=compressionLevel;
-  ZSTD_initCStream(FCStream,flevel);
-  FoutBuffer.size := ZSTD_CStreamOutSize;
-  GetMem(FoutBuffer.dst,FoutBuffer.size);
+  FCStream := Context.GetCStream(flevel);
+  FoutBuffer.size := 256*1024;
+  FoutBuffer.dst := GetBuffer;
   FoutBuffer.pos := 0;
 end;
 
@@ -132,8 +147,8 @@ destructor TZSTDCompressStream.Destroy;
 begin
   ZSTD_flushStream(FCStream,FoutBuffer);
   FStream.Write(FoutBuffer.dst^,FoutBuffer.pos);
-  Freemem(FoutBuffer.dst);
-  ZSTD_freeCStream(FCStream);
+  FreeBuffer(FoutBuffer.dst);
+  Context.FreeCStream(FCStream);
   inherited;
 end;
 
@@ -201,9 +216,9 @@ constructor TZSTDDecompressStream.Create(source: TStream; OwnsStream: Boolean=fa
 begin
   inherited Create(source);
   FOwnsStream := OwnsStream;
-  FDStream := ZSTD_createDStream;
-  FinBuffer.size := ZSTD_DStreamInSize; //128K
-  GetMem(FinBuffer.src,FinBuffer.size);
+  FDStream := Context.GetDStream;
+  FinBuffer.size := 256*1024; //128K
+  FinBuffer.src := GetBuffer;
   total_in := FStream.Read(FinBuffer.src^,FinBuffer.size);
   _eof := total_in<FinBuffer.size;
   FinBuffer.size := total_in;
@@ -211,8 +226,8 @@ end;
 
 destructor TZSTDDecompressStream.Destroy;
 begin
-  Freemem(FinBuffer.src);
-  ZSTD_freeDStream(FDStream);
+  FreeBuffer(FinBuffer.src);
+  Context.FreeDStream(FDStream);
   if FOwnsStream then
     FStream.Free;
   inherited;
@@ -267,8 +282,10 @@ end;
 
 class constructor Context.Create;
 begin
-  _CCtx := ZSTD_CreateCCTX;
-  _DCTX := ZSTD_CreateDCTX;
+  _CCtx := nil;
+  _DCTX := nil;
+  _CStream := nil;
+  _DStream := nil;
 end;
 
 class destructor Context.Destroy;
@@ -284,11 +301,24 @@ begin
   if C<>nil then ZSTD_FreeCCTX(c);
 end;
 
+class procedure Context.FreeCStream(C: ZSTD_CStream);
+begin
+  C := atomicExchange(_CStream,C);
+  if C<>nil then ZSTD_FreeCStream(c);
+end;
+
 class procedure Context.FreeDCTX(C: ZSTD_DCTX);
 begin
   ZSTD_CCTX_reset(C,ZSTD_reset_session_only);
   C := atomicExchange(_DCTX,C);
   if C<>nil then ZSTD_FreeDCTX(c);
+end;
+
+class procedure Context.FreeDStream(C: ZSTD_DStream);
+begin
+  ZSTD_initDStream(C);
+  C := atomicExchange(_DStream,C);
+  if C<>nil then ZSTD_FreeDStream(c);
 end;
 
 class function Context.GetCCTX: ZSTD_CCTX;
@@ -298,11 +328,26 @@ begin
   if Result=nil then Result := ZSTD_CreateCCTX;
 end;
 
+class function Context.GetCStream(cl: integer): ZSTD_CStream;
+begin
+  Result := nil;
+  Result := atomicExchange(_CStream,Result);
+  if Result = nil then Result := ZSTD_createCStream;
+  ZSTD_initCStream(Result,cl);
+end;
+
 class function Context.GetDCTX: ZSTD_DCTX;
 begin
   Result := nil;
   Result := atomicExchange(_DCTX,Result);
   if Result=nil then Result := ZSTD_CreateDCTX;
+end;
+
+class function Context.GetDStream: ZSTD_DStream;
+begin
+  Result := nil;
+  Result := atomicExchange(_DStream,Result);
+  if Result=nil then Result := ZSTD_CreateDStream;
 end;
 
 end.
