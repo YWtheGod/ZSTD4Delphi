@@ -59,73 +59,35 @@ type
 
 function CompressData(source : Pointer;srcSize:NativeInt; dst:Pointer;
   dstCapacity:NativeInt; compressionLevel:integer=3):NativeInt; overload;
-procedure DecompressData(Source:Pointer;srcSize:NativeInt;dst:Pointer;
-  dstCapacity:NativeInt); overload;
+function DecompressData(Source:Pointer;srcSize:NativeInt;dst:Pointer;
+  dstCapacity:NativeInt):NativeInt; overload;
 function CompressData(source :TBytes;index:NativeInt=0;size:NativeInt=-1;
   compressionLevel:integer=3):TBytes; overload;
 function DecompressData(Source:TBytes;Size:NativeInt=-1):TBytes; overload;
 implementation
-uses System.Generics.Collections;
-threadvar _CCtx:ZSTD_CCTX; _DCtx : ZSTD_DCTX;
 type
-  ZSTDManager = class
-  class var
-    CCTXLIST:TThreadList<ZSTD_CCtx>;
-    DCTXLIST:TThreadList<ZSTD_DCTX>;
-    class constructor Init;
-    class destructor Done;
+  Context = record
+    class function GetCCTX:ZSTD_CCTX; static;
+    class function GetDCTX:ZSTD_DCTX; inline; static;
+    class procedure FreeCCTX(C : ZSTD_CCTX); static;
+    class procedure FreeDCTX(C : ZSTD_DCTX); inline; static;
+    class constructor Create;
+    class destructor Destroy;
   end;
-
-function CCTX : ZSTD_CCTX; inline;
-begin
-  if _CCtx<>nil then begin
-    _CCtx := ZSTD_CreateCCTX;
-    ZSTDManager.CCTXLIST.LockList.Add(_CCtx);
-    ZSTDManager.CCTXLIST.UnlockList;
-  end;
-  Result := _CCtx;
-end;
-
-function DCTX : ZSTD_DCTX; inline;
-begin
-  if _DCtx<>nil then begin
-    _DCtx := ZSTD_CreateDCTX;
-    ZSTDManager.DCTXLIST.LockList.Add(_DCtx);
-    ZSTDManager.DCTXLIST.UnlockList;
-  end;
-  Result := _CCtx;
-end;
-{ ZSTDManager }
-
-class destructor ZSTDManager.Done;
 var
-  C: ZSTD_CCTX;
-  D: ZSTD_DCTX;
-begin
-  for C in CCTXList.LockList do
-  begin
-    ZSTD_freeCCtx(C);
-  end;
-  CCTXList.UnlockList;
-  CCTXList.Free;
-  for D in DCTXList.LockList do
-  begin
-    ZSTD_freeDCtx(D);
-  end;
-  DCTXList.UnlockList;
-  DCTXList.Free;
-end;
-
-class constructor ZSTDManager.Init;
-begin
-  CCTXList := TThreadList<ZSTD_CCTX>.Create;
-  DCTXList := TThreadList<ZSTD_DCTX>.Create;
-end;
+  [volatile]_CCTX : ZSTD_CCtx;
+  [volatile]_DCTX : ZSTD_DCtx;
 
 function CompressData(source : Pointer;srcSize:NativeInt; dst:Pointer;
   dstCapacity:NativeInt; compressionLevel:integer=3):NativeInt; overload;
+var TX : ZSTD_CCTX;
 begin
-  Result:= ZSTD_CompressCCTX(CCTX,dst,dstCapacity,source,srcSize,compressionLevel);
+  TX := Context.GetCCTX;
+  try
+    Result:= ZSTD_CompressCCTX(TX,dst,dstCapacity,source,srcSize,compressionLevel);
+  finally
+    Context.FreeCCTX(TX);
+  end;
 end;
 function CompressData(source :TBytes;index:NativeInt=0;size:NativeInt=-1;compressionLevel:integer=3):TBytes;
   overload;
@@ -133,18 +95,25 @@ begin
   if size=-1 then size := Length(source);
   if size=0 then exit(nil);
   setlength(Result,ZSTD_COMPRESSBOUND(size));
-  setLength(Result,ZSTD_CompressCCTX(CCTX,Result,Length(Result),source,size,
+  setLength(Result,CompressData(@Source[0],size,@Result[0],Length(Result),
     compressionLevel));
 end;
-procedure DecompressData(Source:Pointer;srcSize:NativeInt;dst:Pointer;
-  dstCapacity:NativeInt); overload;
+function DecompressData(Source:Pointer;srcSize:NativeInt;dst:Pointer;
+  dstCapacity:NativeInt):NativeInt; overload;
+var TX : ZSTD_DCTX;
 begin
-  ZSTD_decompressDCTX(DCTX,dst,dstCapacity,source,srcSize);
+  TX := Context.GetDCTX;
+  try
+    Result := ZSTD_decompressDCTX(TX,dst,dstCapacity,source,srcSize);
+  finally
+    Context.FreeDCTX(TX);
+  end;
 end;
 function DecompressData(Source:TBytes;Size:NativeInt=-1):TBytes; overload;
 begin
+  if Size=-1 then Size := Length(Source);
   SetLength(Result,Size*32);
-  SetLength(Result,ZSTD_decompressDCTX(DCTX,Result,Length(Result),Source,Size));
+  SetLength(Result,DecompressData(@Source[0],Size,@Result[0],Length(Result)));
 end;
 { TZSTDStream }
 
@@ -292,6 +261,48 @@ end;
 function TZSTDDecompressStream.Write(const buffer; count: Longint): Longint;
 begin
   raise Exception.Create('Compress Stream is ReadOnly');
+end;
+
+{ Contex }
+
+class constructor Context.Create;
+begin
+  _CCtx := ZSTD_CreateCCTX;
+  _DCTX := ZSTD_CreateDCTX;
+end;
+
+class destructor Context.Destroy;
+begin
+  if _CCTX<>nil then ZSTD_FreeCCTX(_CCtx);
+  if _DCTX<>nil then ZSTD_FreeDCTX(_DCTX);
+end;
+
+class procedure Context.FreeCCTX(C: ZSTD_CCTX);
+begin
+  ZSTD_CCTX_reset(C,ZSTD_reset_session_only);
+  C := atomicExchange(_CCTX,C);
+  if C<>nil then ZSTD_FreeCCTX(c);
+end;
+
+class procedure Context.FreeDCTX(C: ZSTD_DCTX);
+begin
+  ZSTD_CCTX_reset(C,ZSTD_reset_session_only);
+  C := atomicExchange(_DCTX,C);
+  if C<>nil then ZSTD_FreeDCTX(c);
+end;
+
+class function Context.GetCCTX: ZSTD_CCTX;
+begin
+  Result := nil;
+  Result := atomicExchange(_CCTX,Result);
+  if Result=nil then Result := ZSTD_CreateCCTX;
+end;
+
+class function Context.GetDCTX: ZSTD_DCTX;
+begin
+  Result := nil;
+  Result := atomicExchange(_DCTX,Result);
+  if Result=nil then Result := ZSTD_CreateDCTX;
 end;
 
 end.
