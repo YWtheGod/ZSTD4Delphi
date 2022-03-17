@@ -36,7 +36,7 @@ type
     function Read(var buffer; count: Longint): Longint; override;
     function Write(const buffer; count: Longint): Longint; override;
     function Read(Buffer: TBytes; Offset, Count: Longint): Longint; override;
-    function Write(const Buffer: TBytes; Offset, Count: Longint): Longint; override;
+    function Write(const Buffer: TBytes; Offset: Longint=0;Count:LongInt=-1): Longint; override;
 
     function Seek(const Offset: Int64; Origin: TSeekOrigin): Int64; override;
     property CompressionRate: Single read GetCompressionRate;
@@ -177,9 +177,9 @@ begin
   else Result := -1;
 end;
 
-function TZSTDCompressStream.Write(const Buffer: TBytes; Offset,
-  Count: Longint): Longint;
+function TZSTDCompressStream.Write(const Buffer: TBytes; Offset: Longint=0;Count:LongInt=-1): Longint;
 begin
+  if Count=-1 then Count := Length(Buffer)-Offset;
   Result := Write(Buffer[Offset],Count);
 end;
 
