@@ -1,7 +1,9 @@
 unit ZSTD;
 
 interface
-uses classes, sysutils, ZSTDLib;
+uses classes, sysutils, ZSTDLib
+{$IFDEF YWRTL},YWTypes{$ENDIF}
+;
 
 const
   ZSTD_VERSION_MAJOR = ZSTDLib.ZSTD_VERSION_MAJOR;
@@ -65,7 +67,6 @@ function CompressData(source :TBytes;index:NativeInt=0;size:NativeInt=-1;
   compressionLevel:integer=3):TBytes; overload;
 function DecompressData(Source:TBytes;Size:NativeInt=-1):TBytes; overload;
 implementation
-{$IFDEF YWRTL}uses YWTypes;{$ENDIF}
 type
   Context = record
     class var [volatile]_CCTX : ZSTD_CCtx;
