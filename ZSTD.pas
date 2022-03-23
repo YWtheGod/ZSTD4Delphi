@@ -293,6 +293,8 @@ class destructor Context.Destroy;
 begin
   if _CCTX<>nil then ZSTD_FreeCCTX(_CCtx);
   if _DCTX<>nil then ZSTD_FreeDCTX(_DCTX);
+  if _CStream<>nil then ZSTD_FreeCStream(_CStream);
+  if _DStream<>nil then ZSTD_FreeDStream(_DStream);
 end;
 
 class procedure Context.FreeCCTX(C: ZSTD_CCTX);

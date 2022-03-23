@@ -877,9 +877,9 @@ function ZSTD_buildBlockEntropyStats(seqStorePtr:Pointer;const prevEntropy:
   workspace:Pointer;wkspSize:NativeInt):NativeInt; external 'libzstd.a';
 {$ENDIF}
 implementation
-uses xxhashlib,
+uses xxhashlib
 {$IFDEF MSWINDOWS}
-libc
+,libc
 {$ENDIF}
 ;
 {$IFDEF WIN32}
